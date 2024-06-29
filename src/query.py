@@ -1,13 +1,9 @@
-from langchain.chat_models import ChatOpenAI
-from langchain.schema import (
-    SystemMessage,
-    HumanMessage,
-    AIMessage
-)
+from mistralai.client import MistralClient
+from mistralai.models.chat_completion import ChatMessage
 from langchain.vectorstores import Pinecone
 from datasets import load_dataset
 from pinecone import PodSpec
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from tqdm.auto import tqdm  # for progress bar
 from dotenv import load_dotenv  # Only if using python-dotenv
 
@@ -20,16 +16,16 @@ import os
 # Load environment variables from .env file (if using python-dotenv)
 load_dotenv()
 
-
-class MedChatbot:
+class PaperChatBot:
     def __init__(self):
         """
-        Initializes the MedChatbot class with API keys, embedding model, and other configurations.
+        Initializes the MedChatbot class with necessary API keys and configurations.
         """
         # Initialize API_KEYS
         self.PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
         self.PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT")
         self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+        self.MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
         self.data_path = "../assets/data/medical_articles.json"
         self.embedding_model = "text-embedding-ada-002"
         self.embed_model = OpenAIEmbeddings(model=self.embedding_model, api_key=self.OPENAI_API_KEY)
@@ -38,7 +34,7 @@ class MedChatbot:
         )
         self.index_name = 'medical-intelligence-rag'
 
-    def load_data(self) -> pd.DataFrame:
+    def load_data(self):
         """
         Load data from a specified file path.
 
@@ -57,7 +53,7 @@ class MedChatbot:
         df = pd.DataFrame(data['articles'])
         return df
 
-    def load_vectorstore(self) -> Pinecone:
+    def load_vectorstore(self):
         """
         Initialize and return the Pinecone vector store.
 
@@ -67,7 +63,7 @@ class MedChatbot:
         from pinecone import Pinecone
         return Pinecone(api_key=self.PINECONE_API_KEY)
 
-    def create_index(self, vector_store: Pinecone, data: pd.DataFrame, batch_size: int = 100):
+    def create_index(self, vector_store, data, batch_size=100):
         """
         Create an index for the loaded data.
 
@@ -114,6 +110,7 @@ class MedChatbot:
             texts = [x['chunk'] for _, x in batch.iterrows()]
             # Embed text
             embeds = self.embed_model.embed_documents(texts)
+
             # Get metadata to store in Pinecone
             metadata = [
                 {'text': x['chunk'],
@@ -129,7 +126,7 @@ class MedChatbot:
             print(index.describe_index_stats())
         return index
 
-    def get_index(self, vectorstore: Pinecone) -> Pinecone.Index:
+    def get_index(self, vectorstore):
         """
         Connect to and return the existing Pinecone index.
 
@@ -142,7 +139,7 @@ class MedChatbot:
         # Connect to index
         return vectorstore.Index(self.index_name)
 
-    def augment_prompt(self, query: str, k: int, vectorstore: Pinecone.Index) -> (str, list):
+    def augment_prompt(self, query, k, vectorstore):
         """
         Augment the query with relevant context from the knowledge base.
 
@@ -168,8 +165,7 @@ class MedChatbot:
         Query: {query}"""
         return augmented_prompt, results
 
-    def query(self, index: Pinecone.Index, query: str, k: int, text_field: str = "text",
-              chat_model: str = "gpt-3.5-turbo") -> (AIMessage, list):
+    def query(self, index, query, k, text_field="text", chat_model="open-mistral-7b"):
         """
         Query the vector store and return the AI response and retriever results.
 
@@ -178,37 +174,46 @@ class MedChatbot:
             query (str): The user query.
             k (int): The number of top results to retrieve.
             text_field (str): The text field to use for similarity search.
-            chat_model (str): The chat model to use.
+            chat_model (str): The chat model to use for generating responses.
 
         Returns:
-            AIMessage: The AI response.
+            str: The AI response.
             list: The retriever results.
         """
         # Initialize the vector store object
+        from langchain.vectorstores import Pinecone
         vectorstore = Pinecone(
-            index, self.embed_model.embed_query, text_field
+            index, self.embed_model, text_field
         )
-        chat = ChatOpenAI(
-            openai_api_key=self.OPENAI_API_KEY,
-            model=chat_model
-        )
-        messages = [
-            SystemMessage(content="You are a helpful assistant."),
-            HumanMessage(content="Hi AI, how are you today?"),
-            AIMessage(content="I'm great thank you. How can I help you?")
-        ]
         augment_prompt, retriever_results = self.augment_prompt(query, k, vectorstore)
 
-        prompt = HumanMessage(
-            content=augment_prompt
+        client = MistralClient(api_key=self.MISTRAL_API_KEY)
+
+        messages = [
+            ChatMessage(role="user", content=augment_prompt)
+        ]
+
+        # No streaming
+        chat_response = client.chat(
+            model=chat_model,
+            messages=messages,
         )
-        res = chat(messages + [prompt])
-        return res, retriever_results
+        return chat_response.choices[0].message.content, retriever_results
 
 
 if __name__ == '__main__':
-    chatbot = MedChatbot()
-    # Load the vector store
+    chatbot = PaperChatBot()
     vc = chatbot.load_vectorstore()
-    # Get the index
     index = chatbot.get_index(vc)
+
+    text_field = "text"
+    top_k_retriever = 3
+    chat_model = "open-mistral-7b"
+    question = "What is the best treatment for diabetes?"
+
+    results, retriever_results = chatbot.query(index, question,
+                                               top_k_retriever,
+                                               text_field,
+                                               chat_model)
+    print(results)
+    print(retriever_results)
