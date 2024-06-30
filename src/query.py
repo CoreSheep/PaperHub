@@ -6,6 +6,7 @@ from pinecone import PodSpec
 from langchain_openai import OpenAIEmbeddings
 from tqdm.auto import tqdm  # for progress bar
 from dotenv import load_dotenv  # Only if using python-dotenv
+import json
 import logging
 import datasets
 import pandas as pd
@@ -37,7 +38,7 @@ class PaperChatBot:
         self.spec = PodSpec(
             environment=self.PINECONE_ENVIRONMENT, pod_type="starter"
         )
-        self.index_name = 'medical-intelligence-rag'
+        self.index_name = 'computer-science-articles-rag'
 
     def load_data(self):
         """
@@ -67,6 +68,15 @@ class PaperChatBot:
         """
         from pinecone import Pinecone
         return Pinecone(api_key=self.PINECONE_API_KEY)
+
+    def load_data_frame(self, file_path):
+        # Load data from JSON file
+        with open(file_path, 'r') as file:
+            data = json.load(file)
+
+        # Convert to DataFrame
+        df = pd.DataFrame(data)
+        return df
 
     def create_index(self, vector_store, data, batch_size=100):
         """
@@ -110,7 +120,7 @@ class PaperChatBot:
             batch = dataset.iloc[i:i_end]
 
             # Generate unique ids for each chunk
-            ids = [f"{x['id']}-{x['chunk-id']}" for i, x in batch.iterrows()]
+            ids = [f"{x['id']}-{x['chunk-id']}" for _, x in batch.iterrows()]
             # Get text to embed
             texts = [x['chunk'] for _, x in batch.iterrows()]
             # Embed text
@@ -119,12 +129,12 @@ class PaperChatBot:
             # Get metadata to store in Pinecone
             metadata = [
                 {'text': x['chunk'],
-                 'source': x['source'],
+                 'source': x['pdf_link'],
                  'title': x['title'],
-                 'authors': x['authors'],
+                 'authors': ', '.join(x['authors']),
                  'journal_ref': x['journal_ref'],
                  'published': x['published']
-                 } for i, x in batch.iterrows()
+                 } for _, x in batch.iterrows()
             ]
             # Add to Pinecone
             index.upsert(vectors=zip(ids, embeds, metadata))
@@ -212,6 +222,8 @@ class PaperChatBot:
 if __name__ == '__main__':
     chatbot = PaperChatBot()
     vc = chatbot.load_vectorstore()
+    df = chatbot.load_data_frame("../data_preprocess/data_merged_chunked.json")
+    chatbot.create_index(vc, df, batch_size=100)
     index = chatbot.get_index(vc)
 
     text_field = "text"
