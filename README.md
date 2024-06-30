@@ -25,7 +25,7 @@ streamlit run webapp_mistral.py
 ## Dataset
 
 - Dataset description
-    - data source: [pubmed](https://pubmed.ncbi.nlm.nih.gov/)
+    - data source: arXiv (https://arxiv.org/)
     - data format:
       - id
       - Title
