@@ -6,15 +6,14 @@ from pinecone import PodSpec
 from langchain_openai import OpenAIEmbeddings
 from tqdm.auto import tqdm  # for progress bar
 from dotenv import load_dotenv  # Only if using python-dotenv
-
+import logging
 import datasets
 import pandas as pd
 import time
 import requests
 import os
 
-# Load environment variables from .env file (if using python-dotenv)
-load_dotenv()
+logging.basicConfig(level=logging.DEBUG)
 
 
 class PaperChatBot:
@@ -22,11 +21,16 @@ class PaperChatBot:
         """
         Initializes the MedChatbot class with necessary API keys and configurations.
         """
+        # Load environment variables from .env file (if using python-dotenv)
+        load_dotenv()
         # Initialize API_KEYS
         self.PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
         self.PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT")
         self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-        self.MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+        print("openai api key", self.OPENAI_API_KEY)
+        self.MISTRAL_PAPERHUB_API_KEY = os.getenv("MISTRAL_PAPERHUB_API_KEY")
+        print("mistral api key", self.MISTRAL_PAPERHUB_API_KEY)
+        # self.MISTRAL_API_KEY = "EbzxMS2kVQKsuGcxUlfrAHmHpEgXXZGW"
         self.data_path = "../assets/data/medical_articles.json"
         self.embedding_model = "text-embedding-ada-002"
         self.embed_model = OpenAIEmbeddings(model=self.embedding_model, api_key=self.OPENAI_API_KEY)
@@ -181,25 +185,28 @@ class PaperChatBot:
             str: The AI response.
             list: The retriever results.
         """
-        # Initialize the vector store object
-        from langchain.vectorstores import Pinecone
         vectorstore = Pinecone(
             index, self.embed_model, text_field
         )
         augment_prompt, retriever_results = self.augment_prompt(query, k, vectorstore)
 
-        client = MistralClient(api_key=self.MISTRAL_API_KEY)
-
         messages = [
             ChatMessage(role="user", content=augment_prompt)
         ]
 
-        # No streaming
-        chat_response = client.chat(
-            model=chat_model,
-            messages=messages,
-        )
-        return chat_response.choices[0].message.content, retriever_results
+        try:
+            client = MistralClient(api_key=self.MISTRAL_PAPERHUB_API_KEY)
+            logging.debug("API key {} is valid".format(self.MISTRAL_PAPERHUB_API_KEY))
+            # No streaming
+            chat_response = client.chat(
+                model=chat_model,
+                messages=messages,
+            )
+            return chat_response.choices[0].message.content, retriever_results
+
+        except Exception as e:
+            logging.debug(f"Error during API call: {e}")
+            return None, None
 
 
 if __name__ == '__main__':

@@ -8,58 +8,91 @@ import pandas as pd
 import streamlit as st
 from annotated_text import annotation
 from markdown import markdown
+from dotenv import load_dotenv  # Only if using python-dotenv
+# Load environment variables from .env file (if using python-dotenv)
+load_dotenv()
+import logging
 
-# Adjust to a question that you would like users to see in the search bar when they load the UI:
+
+# Default question and answer to be shown in the search bar at startup
 DEFAULT_QUESTION_AT_STARTUP = os.getenv("DEFAULT_QUESTION_AT_STARTUP",
                                         "What role does artificial intelligence play in analyzing bibliometric data "
                                         "within medical research?")
 DEFAULT_ANSWER_AT_STARTUP = os.getenv("DEFAULT_ANSWER_AT_STARTUP", "RAG Model")
 
-# Sliders
+# Sliders' default values
 DEFAULT_DOCS_FROM_RETRIEVER = int(os.getenv("DEFAULT_DOCS_FROM_RETRIEVER", "3"))
 DEFAULT_NUMBER_OF_ANSWERS = int(os.getenv("DEFAULT_NUMBER_OF_ANSWERS", "3"))
 
 # Labels for the evaluation
-EVAL_LABELS = os.getenv("EVAL_FILE", str(Path(__file__).parent / "random_questions.csv"))
+RANDOM_QUESTION = os.getenv("EVAL_FILE", str(Path(__file__).parent / "random_questions.csv"))
 
 # Whether the file upload should be enabled or not
 DISABLE_FILE_UPLOAD = bool(os.getenv("DISABLE_FILE_UPLOAD"))
 
 
 def set_state_if_absent(key, value):
+    """
+    Sets a default state in Streamlit session state if the key is not already present.
+
+    Args:
+        key (str): The key to be checked in the session state.
+        value: The value to be set if the key is absent.
+    """
     if key not in st.session_state:
         st.session_state[key] = value
 
 
 def main():
-    st.set_page_config(page_title="A Medical Question-Answering Demo Based On RAG")
+    """
+    Main function to run the Streamlit app.
+    """
+    st.set_page_config(page_title="PaperHub", page_icon="📚")
 
-    # Persistent state
+    # Initialize persistent state
     set_state_if_absent("question", DEFAULT_QUESTION_AT_STARTUP)
     set_state_if_absent("answer", DEFAULT_ANSWER_AT_STARTUP)
     set_state_if_absent("results", None)
     set_state_if_absent("raw_json", None)
     set_state_if_absent("random_question_requested", False)
 
-    # Small callback to reset the interface in case the text of the question changes
+    # Callback function to reset results when the question changes
     def reset_results(*args):
         st.session_state.answer = None
         st.session_state.results = None
         st.session_state.raw_json = None
 
-    # Title
-    st.write("# A Medical Question-Answering Demo Based On RAG")
+    # Example color codes
+    title_color = "#e36414"  # Orange
+    label_color = "#e36414"  # Orange
+
+    # Title with color
+    st.markdown(f"""
+    <h1 style='color: {title_color};'>📚🔎💡 A Question-Answering ChatBot on Academic Paper Based On RAG</h1>
+    """, unsafe_allow_html=True)
+
+    # Labels for the keywords
+    st.markdown(f"""
+    <div style="display: flex; gap: 10px;">
+        <span style='background-color: {label_color}; color: white; padding: 5px; border-radius: 5px;'>Machine Learning</span>
+        <span style='background-color: {label_color}; color: white; padding: 5px; border-radius: 5px;'>Natural Language Processing</span>
+        <span style='background-color: {label_color}; color: white; padding: 5px; border-radius: 5px;'>Computer Vision</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Description with bold keywords
     st.markdown(
         """
-            Ask a question and see if our rag model can find the correct answer to your query!
-            
-            **Note:** search anything you are interested in the intelligence of medical area, 
-            please do not use key words, enter the whole question.
+        Ask a question on **Machine Learning**, **NLP**, and **Computer Vision** and see if our RAG model can find the correct 
+        answer to your query!
+
+        **Note:** Search for anything you are interested in regarding **Machine Learning**, **NLP**, and **Computer Vision**. 
+        Please enter the whole question instead of keywords.
         """,
         unsafe_allow_html=True,
     )
 
-    # Sidebar
+    # Sidebar options
     st.sidebar.header("Options")
     top_k_retriever = st.sidebar.slider(
         "Max. number of documents from retriever",
@@ -70,61 +103,71 @@ def main():
         on_change=reset_results,
     )
 
-    # Define your options for the selector
-    model_options = ["gpt-3.5-turbo", "gpt-4"]
+    # Define options for the chat model selector
+    model_options = [
+        "open-mistral-7b",
+        "open-mixtral-8x7b",
+        "open-mixtral-8x22b",
+        "mistral-small-latest",
+        "mistral-medium-latest",
+        "mistral-large-latest"
+    ]
 
-    # Create a select box widget on the Streamlit app
+    # Create a select box widget in the Streamlit sidebar
     chat_model_selected = st.sidebar.selectbox("Choose a model:", model_options)
 
+    # Add a link to the source code and the libraries used
     st.sidebar.markdown(
         f"""
-    <style>
-        a {{
-            text-decoration: none;
-        }}
-        .chat-footer {{
-            text-align: center;
-            
-        }}
-        .chat-footer h4 {{
-            margin: 0.1rem;
-            padding:0;
-            
-        }}
-        footer {{
-            opacity: 0;
-        }}
-    </style>
-    <div class="chat-footer">
-        <hr />
-        <h4>View source Code <a href="https://github.com/Aayushtirmalle/QA-Robot-Med-INLPT-WS2023">QA-Med-Robot</a></h4>
-        <h4>Built with <a href="https://python.langchain.com/docs/get_started/introduction">Langchain</a> 0.1.8 </h4>
-        <p>Get it on <a href="https://github.com/langchain-ai/langchain">GitHub</a> &nbsp;&nbsp; - &nbsp;&nbsp; Read the <a href="https://python.langchain.com/docs/get_started/quickstart">Docs</a></p>
-    </div>
-    """,
+            <style>
+                a {{
+                    text-decoration: none;
+                }}
+                .chat-footer {{
+                    text-align: center;
+        
+                }}
+                .chat-footer h4 {{
+                    margin: 0.1rem;
+                    padding:0;
+        
+                }}
+                footer {{
+                    opacity: 0;
+                }}
+            </style>
+            <div class="chat-footer">
+                <hr />
+                <h4>View source Code <a href="https://github.com/CoreSheep/PaperHub">PaperHub</a></h4>
+                <h4>Built with <a href="https://python.langchain.com/docs/get_started/introduction">Langchain</a> 0.1.8 </h4>
+                <h4> & <a href="https://mistral.ai/">Mistral AI</a></h4>
+            </div>
+        """,
         unsafe_allow_html=True,
     )
 
-    # Load csv into pandas dataframe
+    # Load random questions from CSV into a pandas dataframe
     try:
-        df = pd.read_csv(EVAL_LABELS, sep=";")
+        df = pd.read_csv(RANDOM_QUESTION, sep=";")
     except Exception:
         st.error(
-            f"The eval file was not found. Please check the demo's [README]("
+            f"The random question file was not found. Please check the demo's [README]("
             f"https://github.com/deepset-ai/haystack/tree/main/ui/README.md) for more information."
         )
         sys.exit(
-            f"The eval file was not found under `{EVAL_LABELS}`. Please check the README (https://github.com/deepset-ai/haystack/tree/main/ui/README.md) for more information."
+            f"The random question file was not found under `{EVAL_LABELS}`. Please check the README (https://github.com/deepset-ai/haystack/tree/main/ui/README.md) for more information."
         )
 
-    # Search bar
-    question = st.text_input(
+    # Search bar for the question
+    question = st.text_area(
         value=st.session_state.question,
-        max_chars=100,
+        height=200,
         on_change=reset_results,
         label="question",
         label_visibility="hidden",
     )
+
+    # Columns for buttons
     col1, col2 = st.columns(2)
     col1.markdown("<style>.stButton button {width:100%;}</style>", unsafe_allow_html=True)
     col2.markdown("<style>.stButton button {width:100%;}</style>", unsafe_allow_html=True)
@@ -132,7 +175,7 @@ def main():
     # Run button
     run_pressed = col1.button("Run")
 
-    # Get next random question from the CSV
+    # Button to get a random question from the CSV
     if col2.button("Random question"):
         reset_results()
         new_row = df.sample(1)
@@ -152,24 +195,25 @@ def main():
         )
     st.session_state.random_question_requested = False
 
-    # Initialize the MedChatbot and Pinecone vector store
-    chatbot = MedChatbot()
+    # Initialize the PaperChatbot and Pinecone vector store
+    chatbot = PaperChatBot()
     vc = chatbot.load_vectorstore()
     index = chatbot.get_index(vc)
     text_field = "text"
 
+    # Check if the query should be run
     run_query = (
                     run_pressed or question != st.session_state.question
                 ) and not st.session_state.random_question_requested
 
-    # Check the connection
+    # Check the connection to the vector store
     with st.spinner("⌛️ &nbsp;&nbsp; Connection is starting..."):
         if index is None:
             st.error("🚫 &nbsp;&nbsp; Index Error. Is vector store running?")
             run_query = False
             reset_results()
 
-    # Get the query results from our RAG pipeline
+    # Get the query results from the RAG pipeline
     if run_query and question:
         reset_results()
         st.session_state.question = question
@@ -197,7 +241,7 @@ def main():
     if st.session_state.results:
         st.write("## Answer:")
         st.write(
-            markdown(str(annotation(st.session_state.results.content, "ANSWER", "#005C53"))),
+            markdown(str(annotation(st.session_state.results, "ANSWER", "#005C53"))),
             unsafe_allow_html=True
         )
 
