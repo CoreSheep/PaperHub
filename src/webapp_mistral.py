@@ -16,8 +16,7 @@ import logging
 
 # Default question and answer to be shown in the search bar at startup
 DEFAULT_QUESTION_AT_STARTUP = os.getenv("DEFAULT_QUESTION_AT_STARTUP",
-                                        "What role does artificial intelligence play in analyzing bibliometric data "
-                                        "within medical research?")
+                                        "What is the difference between supervised and unsupervised learning?")
 DEFAULT_ANSWER_AT_STARTUP = os.getenv("DEFAULT_ANSWER_AT_STARTUP", "RAG Model")
 
 # Sliders' default values
@@ -161,7 +160,7 @@ def main():
     # Search bar for the question
     question = st.text_area(
         value=st.session_state.question,
-        height=200,
+        height=100,
         on_change=reset_results,
         label="question",
         label_visibility="hidden",
@@ -239,22 +238,30 @@ def main():
 
     # Show the answers on the screen
     if st.session_state.results:
-        st.write("## Answer:")
-        st.write(
-            markdown(str(annotation(st.session_state.results, "ANSWER", "#005C53"))),
+        st.markdown("<h2 style='color: #e36414;'>Answer:</h2>", unsafe_allow_html=True)
+        st.markdown(
+            f"""
+             <div style='padding: 10px; border-radius: 5px;'>
+                 {markdown(str(st.session_state.results))}
+             </div>
+             """,
             unsafe_allow_html=True
         )
-
-        st.write("## Top-k Retrieval Results:")
+        st.markdown("<h2 style='color: #e36414;'>Top-k Retrieval Results:</h2>", unsafe_allow_html=True)
         if run_query and question:
             for count, result in enumerate(retriever_results):
                 page_content, metadata = result.page_content, result.metadata
                 # Display each chunk
                 st.markdown(f"##### Chunk {count + 1}")
-                st.write(
-                    markdown(str(annotation(page_content, "CHUNK", "#13678A"))),
+                st.markdown(
+                    f"""
+                        <div style='border: 2px solid #e36414; padding: 10px; border-radius: 5px;'>
+                            <p>{page_content}</p>
+                        </div>
+                        """,
                     unsafe_allow_html=True
                 )
+
                 st.markdown(f"**Title:** {metadata['title']}&nbsp;&nbsp;&nbsp;**Source:** {metadata['source']} ")
 
 

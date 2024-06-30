@@ -1,6 +1,8 @@
 from Bio import Entrez, Medline
 from datetime import datetime
 import json
+import glob
+
 from langchain.text_splitter import CharacterTextSplitter
 
 
@@ -83,15 +85,48 @@ def get_chunks(search_term, chunk_size, email, output_file='../assets/data/medic
     print(f"Processed and saved {len(articles)} chunks to {output_file}.")
 
 
-# Initialize the text splitter with a specific chunk size
-chunk_size = 256  # Define your desired chunk size
+def merge_json_files(output_file, input_files_pattern):
+    """
+    Merge multiple JSON files into one JSON file.
 
-email = "leepual168@gmail.com"
-# Search for documents with the term "intelligence" in the abstract and published between 2013 and 2023
-search_term = "intelligence"
-if __name__ == '__main__':
-    get_chunks(search_term, chunk_size, email)
-    # example_ab = "Alan Schelten Ruan Silva Eric Michael Smith Ranjan Subramanian Xiaoqing Ellen Tan Binh Tang\nRoss Taylor Adina Williams Jian Xiang Kuan Puxin Xu Zheng Yan Iliyan Zarov Yuchen Zhang\nAngela Fan Melanie Kambadur Sharan Narang Aurelien Rodriguez Robert Stojnic\nSergey Edunov Thomas Scialom\x03\nGenAI, Meta\nAbstract\nIn this work, we develop and release Llama 2, a collection of pretrained and ﬁne-tuned\nlarge language models (LLMs) ranging in scale from 7 billion to 70 billion parameters.\nOur ﬁne-tuned LLMs, called L/l.sc/a.sc/m.sc/a.sc /two.taboldstyle-C/h.sc/a.sc/t.sc , are optimized for dialogue use cases. Our\nmodels outperform open-source chat models on most benchmarks we tested, and based on\nourhumanevaluationsforhelpfulnessandsafety,maybeasuitablesubstituteforclosedsource models. We provide a detailed description of our approach to ﬁne-tuning and safety"
-    # ab = "PURPOSE: Numerous uveitis articles were published in this century, underneath which hides valuable intelligence. We aimed to characterize the evolution and patterns in this field. METHODS: We divided the 15,994 uveitis papers into four consecutive time periods for bibliometric analysis, and applied latent Dirichlet allocation topic modeling and machine learning techniques to the latest period. . RESULTS: The yearly publication pattern fitted the curve: 1.21335x(2) - 4,848.95282x + 4,844,935.58876 (R(2) = 0.98311). The USA, the most productive country/region, focused on topics like ankylosing spondylitis and biologic therapy, whereas China (mainland) focused on topics like OCT and Behcet disease. The logistic regression showed the highest accuracy (71.6%) in the test set. CONCLUSION: In this century, a growing number of countries/regions/authors/journals are involved in the uveitis study, promoting the scientific output and thematic evolution. Our pioneering study uncovers the evolving academic trends and frontier patterns in this field using bibliometric analysis and AI algorithms."
-    # chunks = custom_text_splitter([ab], 256)
-    # print(chunks)
+    Args:
+        output_file (str): The file path for the output merged JSON file.
+        input_files_pattern (str): The pattern to match the input JSON files (e.g., 'data/*.json').
+
+    Returns:
+        None
+    """
+    combined_data = []
+
+    # Get the list of JSON files to be merged
+    input_files = glob.glob(input_files_pattern)
+    print(input_files)
+
+    # Iterate over each file and append its data to the combined_data list
+    for file_path in input_files:
+        with open(file_path, 'r') as file:
+            data = json.load(file)
+            combined_data.extend(data)
+
+    # Write the combined data to the output file
+    with open(output_file, 'w') as output_file:
+        json.dump(combined_data, output_file, indent=4)
+
+
+if __name__ == "__main__":
+    # Example usage
+    merge_json_files('./data_merged_chunked.json', '/Users/jiufeng/Documents/'
+                                                   '24ss/HeiGenAI/PaperHub/assets/data/dataset_paperhub/*.json')
+
+# # Initialize the text splitter with a specific chunk size
+# chunk_size = 256  # Define your desired chunk size
+#
+# email = "leepual168@gmail.com"
+# # Search for documents with the term "intelligence" in the abstract and published between 2013 and 2023
+# search_term = "intelligence"
+# if __name__ == '__main__':
+#     get_chunks(search_term, chunk_size, email)
+#     # example_ab = "Alan Schelten Ruan Silva Eric Michael Smith Ranjan Subramanian Xiaoqing Ellen Tan Binh Tang\nRoss Taylor Adina Williams Jian Xiang Kuan Puxin Xu Zheng Yan Iliyan Zarov Yuchen Zhang\nAngela Fan Melanie Kambadur Sharan Narang Aurelien Rodriguez Robert Stojnic\nSergey Edunov Thomas Scialom\x03\nGenAI, Meta\nAbstract\nIn this work, we develop and release Llama 2, a collection of pretrained and ﬁne-tuned\nlarge language models (LLMs) ranging in scale from 7 billion to 70 billion parameters.\nOur ﬁne-tuned LLMs, called L/l.sc/a.sc/m.sc/a.sc /two.taboldstyle-C/h.sc/a.sc/t.sc , are optimized for dialogue use cases. Our\nmodels outperform open-source chat models on most benchmarks we tested, and based on\nourhumanevaluationsforhelpfulnessandsafety,maybeasuitablesubstituteforclosedsource models. We provide a detailed description of our approach to ﬁne-tuning and safety"
+#     # ab = "PURPOSE: Numerous uveitis articles were published in this century, underneath which hides valuable intelligence. We aimed to characterize the evolution and patterns in this field. METHODS: We divided the 15,994 uveitis papers into four consecutive time periods for bibliometric analysis, and applied latent Dirichlet allocation topic modeling and machine learning techniques to the latest period. . RESULTS: The yearly publication pattern fitted the curve: 1.21335x(2) - 4,848.95282x + 4,844,935.58876 (R(2) = 0.98311). The USA, the most productive country/region, focused on topics like ankylosing spondylitis and biologic therapy, whereas China (mainland) focused on topics like OCT and Behcet disease. The logistic regression showed the highest accuracy (71.6%) in the test set. CONCLUSION: In this century, a growing number of countries/regions/authors/journals are involved in the uveitis study, promoting the scientific output and thematic evolution. Our pioneering study uncovers the evolving academic trends and frontier patterns in this field using bibliometric analysis and AI algorithms."
+#     # chunks = custom_text_splitter([ab], 256)
+#     # print(chunks)

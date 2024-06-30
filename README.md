@@ -1,8 +1,7 @@
-# A Medical Question-Answering Demo Based On RAG
-A QA system for the medical field on <em>Intelligence</em>, utilizing the RAG model, 
-langchain for chunking texts, Pinecone for vector storage, and ChatGPT for generating answers.
+# A Question-Answering ChatBot on Academic Paper Based On RAG
+Welcome to our AI-powered chatbot! Our platform leverages advanced Retrieval-Augmented Generation (RAG) models powered by Mistral AI to provide you with accurate and insightful answers to your questions on Machine Learning, Natural Language Processing (NLP), and Computer Vision. Whether you are curious about the latest trends, need help with technical concepts, or want to explore practical applications in these fields, our chatbot is designed to assist you. Simply ask a detailed question, and our system will retrieve and generate the most relevant information to satisfy your query. Note: For the best results, please enter your entire question rather than just keywords.  
 
-![chat](assets/images/screenshot.png)
+![chat](assets/images/screenshot2.png)
 
 ## Table of Contents
 - [Get Started](#get-started)
@@ -12,15 +11,14 @@ langchain for chunking texts, Pinecone for vector storage, and ChatGPT for gener
 ## Get Started
 1. install all the dependencies
 ```bash
-# run the script /data_preprocess/load_data.py to download more data
-git clone https://github.com/Aayushtirmalle/QA-Robot-Med-INLPT-WS2023.git
+git clone https://github.com/CoreSheep/PaperHub.git
 cd ./src
 pip install .
 ```
 2. run the webapp
 ```bash
 cd ./src
-streamlit run webapp.py
+streamlit run webapp_mistral.py
 ```
 
 
@@ -29,16 +27,16 @@ streamlit run webapp.py
 - Dataset description
     - data source: [pubmed](https://pubmed.ncbi.nlm.nih.gov/)
     - data format:
-      - PMID
+      - id
       - Title
       - Author
       - Chunk-id
+      - source
       - Journal Title
       - Publication Date
-      - Chunk (of abstract)
-    - data size: 991 articles
+      - Chunk
 - Example
-![dataset example](assets/images/dataset_example.png)
+![dataset example](assets/images/dataset_example2.png)
 - Text splitter
   - We use our customized text splitter to get the small-size chunk
 ```python
@@ -50,15 +48,6 @@ def custom_text_splitter(text, chunk_size):
         chunk_overlap=20
     )
     return text_splitter.create_documents(text)
-```
-
-- Versatility  
-If you want to create another dataset, instead of "intelligence", using our data model, you can simply pass 
-different search term.
-```python
-from load_data import get_chunks
-search_term = "machine learning"
-get_chunks(search_term, chunk_size, email, output_file='assets/data/medical_articles.json')
 ```
 
 ## Pipeline
@@ -93,34 +82,34 @@ if self.index_name not in existing_indexes:
 - Upsert all the embeddings to pinecone in batch
 ```python
 for i in tqdm(range(0, len(dataset), batch_size)):
-        i_end = min(len(dataset), i + batch_size)
-        # get batch of data
-        batch = dataset.iloc[i:i_end]
+    i_end = min(len(dataset), i + batch_size)
+    # Get batch of data
+    batch = dataset.iloc[i:i_end]
 
-        # generate unique ids for each chunk
-        ids = [f"{x['articles']['id']}-{x['articles']['chunk-id']}" for i, x in batch.iterrows()]
-        # get text to embed
-        texts = [x['articles']['chunk'] for _, x in batch.iterrows()]
-        # embed text
-        embeds = self.embed_model.embed_documents(texts)
-        # get metadata to store in Pinecone
-        metadata = [
-            {'text': x['articles']['chunk'],
-             'source': x['articles']['source'],
-             'title': x['articles']['title'],
-             'authors': x['articles']['authors'],
-             'journal_ref': x['articles']['journal_ref'],
-             'published': x['articles']['published']
-             } for i, x in batch.iterrows()
-        ]
-        # add to Pinecone
-        index.upsert(vectors=zip(ids, embeds, metadata))
-print(index.describe_index_stats())
+    # Generate unique ids for each chunk
+    ids = [f"{x['id']}-{x['chunk-id']}" for _, x in batch.iterrows()]
+    # Get text to embed
+    texts = [x['chunk'] for _, x in batch.iterrows()]
+    # Embed text
+    embeds = self.embed_model.embed_documents(texts)
+
+    # Get metadata to store in Pinecone
+    metadata = [
+        {'text': x['chunk'],
+         'source': x['pdf_link'],
+         'title': x['title'],
+         'authors': ', '.join(x['authors']),
+         'journal_ref': x['journal_ref'],
+         'published': x['published']
+         } for _, x in batch.iterrows()
+    ]
+    # Add to Pinecone
+    index.upsert(vectors=zip(ids, embeds, metadata))
 ```
 
 - Answering
 ```python
-chatbot = MedChatbot()
+chatbot = PaperChatbot()
 # data = chatbot.load_data()
 vc = chatbot.load_vectorstore()
 # index = chatbot.create_index(vc, data, batch_size=100)
@@ -128,9 +117,10 @@ index = chatbot.get_index(vc)
 chatbot.query(index, question, top_k_retriever, text_field, chat_model_selected)
 ```
 
-![answer_example](assets/images/answers_example.png)
+![answer_example](assets/images/answer_example2.png)
 
 # References
+[Mistral Documentation](https://docs.mistral.ai/capabilities/completion/)
 [Langchain Documentation](https://python.langchain.com/docs/get_started/introduction)
 [Pinecone Documentation](https://docs.pinecone.io/docs/overview)
 [OpenAI Documentation](https://platform.openai.com/docs/api-reference)
