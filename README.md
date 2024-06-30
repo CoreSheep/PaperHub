@@ -1,5 +1,6 @@
 # A Question-Answering ChatBot on Academic Paper Based On RAG
-Welcome to our AI-powered chatbot! Our platform leverages advanced Retrieval-Augmented Generation (RAG) models powered by Mistral AI to provide you with accurate and insightful answers to your questions on Machine Learning, Natural Language Processing (NLP), and Computer Vision. Whether you are curious about the latest trends, need help with technical concepts, or want to explore practical applications in these fields, our chatbot is designed to assist you. Simply ask a detailed question, and our system will retrieve and generate the most relevant information to satisfy your query. Note: For the best results, please enter your entire question rather than just keywords.
+Welcome to our AI-powered chatbot! Our platform leverages advanced Retrieval-Augmented Generation (RAG) models powered by Mistral AI to provide you with accurate and insightful answers to your questions on Machine Learning, Natural Language Processing (NLP), and Computer Vision. Whether you are curious about the latest trends, need help with technical concepts, or want to explore practical applications in these fields, our chatbot is designed to assist you. Simply ask a detailed question, and our system will retrieve and generate the most relevant information to satisfy your query. Note: For the best results, please enter your entire question rather than just keywords.  
+
 ![chat](assets/images/screenshot2.png)
 
 ## Table of Contents
