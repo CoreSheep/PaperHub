@@ -1,4 +1,5 @@
 import os
+import io
 import sys
 import logging
 from pathlib import Path
@@ -8,6 +9,14 @@ import pandas as pd
 import streamlit as st
 from annotated_text import annotation
 from markdown import markdown
+import streamlit as st
+from streamlit_pdf_viewer import pdf_viewer
+from streamlit import session_state as ss
+from grobid_client.grobid_client import GrobidClient
+import requests
+
+# Initialize the Grobid client
+grobid_client = GrobidClient(config_path="./config.json")
 
 # Adjust to a question that you would like users to see in the search bar when they load the UI:
 DEFAULT_QUESTION_AT_STARTUP = os.getenv("DEFAULT_QUESTION_AT_STARTUP",
@@ -29,6 +38,12 @@ DISABLE_FILE_UPLOAD = bool(os.getenv("DISABLE_FILE_UPLOAD"))
 def set_state_if_absent(key, value):
     if key not in st.session_state:
         st.session_state[key] = value
+
+def process_pdf(file_content):
+    url = 'https://kermitt2-grobid.hf.space/api/processFulltextDocument'
+    files = {'input': ('filename.pdf', file_content, 'application/pdf')}
+    response = requests.post(url, files=files)
+    return response.text
 
 
 def main():
@@ -125,9 +140,31 @@ def main():
         label="question",
         label_visibility="hidden",
     )
+
+
+    
+     # File uploader
+    if 'pdf_ref' not in ss:
+        ss.pdf_ref = None
+    somen = st.file_uploader("Or drop a PDF Document here:", type='pdf', accept_multiple_files=False, key='pdf', disabled=False, label_visibility="visible")
+    if ss.pdf:
+        ss.pdf_ref = ss.pdf 
+    if ss.pdf_ref:
+        binary_data = ss.pdf_ref.getvalue()
+        pdf_viewer(input=binary_data, width=500, height=600)
+        file_name = ss.pdf_ref.name
+        file_bytes = io.BytesIO(somen.read().decode('utf-8', errors='ignore').encode('utf-8'))
+        
+        rsp = process_pdf(ss.pdf_ref.read())
+        question = rsp
+
+
+        print(rsp)
+    
     col1, col2 = st.columns(2)
     col1.markdown("<style>.stButton button {width:100%;}</style>", unsafe_allow_html=True)
     col2.markdown("<style>.stButton button {width:100%;}</style>", unsafe_allow_html=True)
+
 
     # Run button
     run_pressed = col1.button("Run")
@@ -157,7 +194,6 @@ def main():
     vc = chatbot.load_vectorstore()
     index = chatbot.get_index(vc)
     text_field = "text"
-
     run_query = (
                     run_pressed or question != st.session_state.question
                 ) and not st.session_state.random_question_requested
@@ -168,7 +204,7 @@ def main():
             st.error("🚫 &nbsp;&nbsp; Index Error. Is vector store running?")
             run_query = False
             reset_results()
-
+    
     # Get the query results from our RAG pipeline
     if run_query and question:
         reset_results()
