@@ -8,7 +8,9 @@ import pandas as pd
 import streamlit as st
 from annotated_text import annotation
 from markdown import markdown
+from io import StringIO
 from dotenv import load_dotenv  # Only if using python-dotenv
+from utils import read_pdf, process_file
 # Load environment variables from .env file (if using python-dotenv)
 load_dotenv()
 import logging
@@ -66,6 +68,7 @@ def main():
     vc = chatbot.load_vectorstore()
     index = chatbot.get_index(vc)
     text_field = "text"
+    pdf_content = ""
 
     # Example color codes
     title_color = "#e36414"  # Orange
@@ -112,14 +115,6 @@ def main():
     # Create sliders for each parameter
     max_tokens = st.sidebar.slider("Max tokens", min_value=1, max_value=2048, value=1024)
     temperature = st.sidebar.slider("Temperature", min_value=0.0, max_value=1.0, value=0.5, step=0.1)
-
-    # Display the selected values
-    # st.write("## Selected Parameters")
-    # st.write(f"Max new tokens: {max_new_tokens}")
-    # st.write(f"Temperature: {temperature}")
-    # st.write(f"Top-p (nucleus sampling): {top_p}")
-    # st.write(f"Top-k: {top_k}")
-    # st.write(f"Repetition penalty: {repetition_penalty}")
 
     # Define options for the chat model selector
     model_options = chatbot.get_current_model_list()
@@ -169,14 +164,27 @@ def main():
             f"The random question file was not found under `{EVAL_LABELS}`. Please check the README (https://github.com/deepset-ai/haystack/tree/main/ui/README.md) for more information."
         )
 
-    # Search bar for the question
+
     question = st.text_area(
         value=st.session_state.question,
+        placeholder="🔍Enter your question here...",
         height=100,
         on_change=reset_results,
         label="question",
         label_visibility="hidden",
     )
+
+    uploaded_file = st.file_uploader(
+        label="📎 Upload files",
+        type=["txt", "pdf"],
+        label_visibility="visible",
+        accept_multiple_files=False,
+        help="Hint: Upload your files to get tailored answers based on your documents. "
+             "This allows us to provide you with the most relevant and personalized information. 😊")
+
+    # Handle the uploaded files
+    if uploaded_file:
+        pdf_content = process_file(uploaded_file)
 
     # Columns for buttons
     col1, col2 = st.columns(2)
@@ -229,7 +237,9 @@ def main():
                 "🔍 &nbsp;&nbsp; Performing neural search on vector store... \n "
         )):
             try:
-                st.session_state.results, retriever_results = chatbot.query(index, question,
+                st.session_state.results, retriever_results = chatbot.query(index,
+                                                                            question,
+                                                                            pdf_content,
                                                                             top_k_retriever,
                                                                             temperature,
                                                                             max_tokens,

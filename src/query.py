@@ -152,13 +152,14 @@ class PaperChatBot:
         # Connect to index
         return vectorstore.Index(self.index_name)
 
-    def augment_prompt(self, query, k, vectorstore):
+    def augment_prompt(self, query, k, pdf_content, vectorstore):
         """
         Augment the query with relevant context from the knowledge base.
 
         Args:
             query (str): The user query.
             k (int): The number of top results to retrieve.
+            pdf_content (str): The content of the PDF file uploaded by user.
             vectorstore (Pinecone.Index): The Pinecone index instance.
 
         Returns:
@@ -170,12 +171,21 @@ class PaperChatBot:
         # Get the text from the results
         source_knowledge = "\n".join([x.page_content for x in results])
         # Feed into an augmented prompt
-        augmented_prompt = f"""Using the contexts below, answer the query.
+        augmented_prompt = \
+            f"""Using the additional information from the knowledge base below, answer the query.
+                if the user uploaded a PDF, include the content in the response, and focus more on the content instead 
+                of the knowledge base.
 
-        Contexts:
-        {source_knowledge}
-
-        Query: {query}"""
+                Content of user uploaded PDF:
+                {pdf_content}
+                
+                
+                Additional information from the knowledge base:
+                {source_knowledge}
+        
+                Query: 
+                {query}
+                """
         return augmented_prompt, results
 
     def get_mistralai_model_list(self):
@@ -220,6 +230,7 @@ class PaperChatBot:
     def query(self,
         index,
         query,
+        pdf_content,
         top_k_retriever=3,
         temperature=0.5,
         max_tokens=1024,
@@ -232,6 +243,8 @@ class PaperChatBot:
         Args:
             index (Pinecone.Index): The Pinecone index instance.
             query (str): The user query.
+            pdf_content (str): The content of the PDF file uploaded by user.
+            top_k_retriever (int): The number of top results to retrieve.
             k (int): The number of top results to retrieve.
             text_field (str): The text field to use for similarity search.
             chat_model (str): The chat model to use for generating responses.
@@ -243,7 +256,7 @@ class PaperChatBot:
         vectorstore = Pinecone(
             index, self.embed_model, text_field
         )
-        augment_prompt, retriever_results = self.augment_prompt(query, top_k_retriever, vectorstore)
+        augment_prompt, retriever_results = self.augment_prompt(query, top_k_retriever, pdf_content, vectorstore)
 
         try:
             if chat_model in self.get_mistralai_model_list():
@@ -288,8 +301,12 @@ if __name__ == '__main__':
     chat_model = "open-mistral-7b"
     question = "What is the best treatment for diabetes?"
 
-    results, retriever_results = chatbot.query(index, question,
-                                               top_k_retriever,
+    pdf_content = ""
+
+    results, retriever_results = chatbot.query(index,
+                                               question,
+                                               pdf_content=pdf_content,
+                                               top_k_retriever=top_k_retriever,
                                                temperature=0.5,
                                                max_tokens=1024,
                                                text_field=text_field,
