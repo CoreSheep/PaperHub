@@ -6,6 +6,7 @@ from pinecone import PodSpec
 from langchain_openai import OpenAIEmbeddings
 from tqdm.auto import tqdm  # for progress bar
 from dotenv import load_dotenv  # Only if using python-dotenv
+from openai import OpenAI
 import json
 import logging
 import datasets
@@ -28,10 +29,7 @@ class PaperChatBot:
         self.PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
         self.PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT")
         self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-        print("openai api key", self.OPENAI_API_KEY)
         self.MISTRAL_PAPERHUB_API_KEY = os.getenv("MISTRAL_PAPERHUB_API_KEY")
-        print("mistral api key", self.MISTRAL_PAPERHUB_API_KEY)
-        # self.MISTRAL_API_KEY = "EbzxMS2kVQKsuGcxUlfrAHmHpEgXXZGW"
         self.data_path = "../assets/data/medical_articles.json"
         self.embedding_model = "text-embedding-ada-002"
         self.embed_model = OpenAIEmbeddings(model=self.embedding_model, api_key=self.OPENAI_API_KEY)
@@ -180,7 +178,54 @@ class PaperChatBot:
         Query: {query}"""
         return augmented_prompt, results
 
-    def query(self, index, query, k, text_field="text", chat_model="open-mistral-7b"):
+    def get_mistralai_model_list(self):
+        """
+        Get the list of available MistralAI chat models.
+
+        Returns:
+            list: The list of available MistralAI chat models.
+        """
+        return [
+            "open-mistral-7b",
+            "open-mixtral-8x7b",
+            "open-mixtral-8x22b",
+            "mistral-small-latest",
+            "mistral-medium-latest",
+            "mistral-large-latest"
+        ]
+
+    def get_openai_model_list(self):
+        """
+        Get the list of available OpenAI chat models.
+
+        Returns:
+            list: The list of available OpenAI chat models.
+        """
+        return [
+            "gpt-4o",
+            "gpt-4-turbo",
+            "gpt-4",
+            "gpt-3.5-turbo"
+        ]
+
+    def get_current_model_list(self):
+        """
+        Get the list of available chat models.
+
+        Returns:
+            list: The list of available chat models.
+        """
+        return self.get_openai_model_list() + self.get_mistralai_model_list()
+
+    def query(self,
+        index,
+        query,
+        top_k_retriever=3,
+        temperature=0.5,
+        max_tokens=1024,
+        text_field="text",
+        chat_model="open-mistral-7b"
+    ) -> (str, list):
         """
         Query the vector store and return the AI response and retriever results.
 
@@ -198,21 +243,33 @@ class PaperChatBot:
         vectorstore = Pinecone(
             index, self.embed_model, text_field
         )
-        augment_prompt, retriever_results = self.augment_prompt(query, k, vectorstore)
-
-        messages = [
-            ChatMessage(role="user", content=augment_prompt)
-        ]
+        augment_prompt, retriever_results = self.augment_prompt(query, top_k_retriever, vectorstore)
 
         try:
-            client = MistralClient(api_key=self.MISTRAL_PAPERHUB_API_KEY)
-            logging.debug("API key {} is valid".format(self.MISTRAL_PAPERHUB_API_KEY))
-            # No streaming
-            chat_response = client.chat(
-                model=chat_model,
-                messages=messages,
-            )
-            return chat_response.choices[0].message.content, retriever_results
+            if chat_model in self.get_mistralai_model_list():
+                client = MistralClient(api_key=self.MISTRAL_PAPERHUB_API_KEY)
+                logging.debug("API key {} is valid".format(self.MISTRAL_PAPERHUB_API_KEY))
+                # No streaming
+                chat_response = client.chat(
+                    model=chat_model,
+                    messages=[ChatMessage(role="user", content=augment_prompt)],
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+                return chat_response.choices[0].message.content, retriever_results
+            elif chat_model in self.get_openai_model_list():
+                client = OpenAI()
+
+                chat_response = client.chat.completions.create(
+                    model=chat_model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant to answer the user question."},
+                        {"role": "user", "content": augment_prompt},
+                    ]
+                )
+                return chat_response.choices[0].message.content, retriever_results
 
         except Exception as e:
             logging.debug(f"Error during API call: {e}")
@@ -233,7 +290,9 @@ if __name__ == '__main__':
 
     results, retriever_results = chatbot.query(index, question,
                                                top_k_retriever,
-                                               text_field,
-                                               chat_model)
+                                               temperature=0.5,
+                                               max_tokens=1024,
+                                               text_field=text_field,
+                                               chat_model=chat_model)
     print(results)
     print(retriever_results)
