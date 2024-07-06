@@ -20,8 +20,8 @@ DEFAULT_QUESTION_AT_STARTUP = os.getenv("DEFAULT_QUESTION_AT_STARTUP",
 DEFAULT_ANSWER_AT_STARTUP = os.getenv("DEFAULT_ANSWER_AT_STARTUP", "RAG Model")
 
 # Sliders' default values
-DEFAULT_DOCS_FROM_RETRIEVER = int(os.getenv("DEFAULT_DOCS_FROM_RETRIEVER", "3"))
-DEFAULT_NUMBER_OF_ANSWERS = int(os.getenv("DEFAULT_NUMBER_OF_ANSWERS", "3"))
+DEFAULT_DOCS_FROM_RETRIEVER = int(os.getenv("DEFAULT_DOCS_FROM_RETRIEVER", "5"))
+DEFAULT_NUMBER_OF_ANSWERS = int(os.getenv("DEFAULT_NUMBER_OF_ANSWERS", "5"))
 
 # Labels for the evaluation
 RANDOM_QUESTION = os.getenv("EVAL_FILE", str(Path(__file__).parent / "random_questions.csv"))
@@ -61,6 +61,12 @@ def main():
         st.session_state.results = None
         st.session_state.raw_json = None
 
+    # Initialize the PaperChatbot and Pinecone vector store
+    chatbot = PaperChatBot()
+    vc = chatbot.load_vectorstore()
+    index = chatbot.get_index(vc)
+    text_field = "text"
+
     # Example color codes
     title_color = "#e36414"  # Orange
     label_color = "#e36414"  # Orange
@@ -93,6 +99,7 @@ def main():
 
     # Sidebar options
     st.sidebar.header("Options")
+
     top_k_retriever = st.sidebar.slider(
         "Max. number of documents from retriever",
         min_value=1,
@@ -102,15 +109,20 @@ def main():
         on_change=reset_results,
     )
 
+    # Create sliders for each parameter
+    max_tokens = st.sidebar.slider("Max tokens", min_value=1, max_value=2048, value=1024)
+    temperature = st.sidebar.slider("Temperature", min_value=0.0, max_value=1.0, value=0.5, step=0.1)
+
+    # Display the selected values
+    # st.write("## Selected Parameters")
+    # st.write(f"Max new tokens: {max_new_tokens}")
+    # st.write(f"Temperature: {temperature}")
+    # st.write(f"Top-p (nucleus sampling): {top_p}")
+    # st.write(f"Top-k: {top_k}")
+    # st.write(f"Repetition penalty: {repetition_penalty}")
+
     # Define options for the chat model selector
-    model_options = [
-        "open-mistral-7b",
-        "open-mixtral-8x7b",
-        "open-mixtral-8x22b",
-        "mistral-small-latest",
-        "mistral-medium-latest",
-        "mistral-large-latest"
-    ]
+    model_options = chatbot.get_current_model_list()
 
     # Create a select box widget in the Streamlit sidebar
     chat_model_selected = st.sidebar.selectbox("Choose a model:", model_options)
@@ -194,11 +206,7 @@ def main():
         )
     st.session_state.random_question_requested = False
 
-    # Initialize the PaperChatbot and Pinecone vector store
-    chatbot = PaperChatBot()
-    vc = chatbot.load_vectorstore()
-    index = chatbot.get_index(vc)
-    text_field = "text"
+
 
     # Check if the query should be run
     run_query = (
@@ -223,6 +231,8 @@ def main():
             try:
                 st.session_state.results, retriever_results = chatbot.query(index, question,
                                                                             top_k_retriever,
+                                                                            temperature,
+                                                                            max_tokens,
                                                                             text_field,
                                                                             chat_model_selected)
             except JSONDecodeError as je:
