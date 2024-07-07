@@ -55,6 +55,8 @@ def main():
     set_state_if_absent("answer", DEFAULT_ANSWER_AT_STARTUP)
     set_state_if_absent("results", None)
     set_state_if_absent("raw_json", None)
+    set_state_if_absent("retriever_results", None)
+    set_state_if_absent("run_query", False)
     set_state_if_absent("random_question_requested", False)
 
     # Callback function to reset results when the question changes
@@ -62,6 +64,7 @@ def main():
         st.session_state.answer = None
         st.session_state.results = None
         st.session_state.raw_json = None
+        st.session_state.retriever_results = None
 
     # Initialize the PaperChatbot and Pinecone vector store
     chatbot = PaperChatBot()
@@ -164,7 +167,7 @@ def main():
             f"The random question file was not found under `{EVAL_LABELS}`. Please check the README (https://github.com/deepset-ai/haystack/tree/main/ui/README.md) for more information."
         )
 
-
+    # Text area for the question
     question = st.text_area(
         value=st.session_state.question,
         placeholder="🔍Enter your question here...",
@@ -214,22 +217,19 @@ def main():
         )
     st.session_state.random_question_requested = False
 
-
-
     # Check if the query should be run
-    run_query = (
+    st.session_state.run_query = (
                     run_pressed or question != st.session_state.question
                 ) and not st.session_state.random_question_requested
-
     # Check the connection to the vector store
     with st.spinner("⌛️ &nbsp;&nbsp; Connection is starting..."):
         if index is None:
             st.error("🚫 &nbsp;&nbsp; Index Error. Is vector store running?")
-            run_query = False
+            st.session_state.run_query = False
             reset_results()
 
     # Get the query results from the RAG pipeline
-    if run_query and question:
+    if st.session_state.run_query and question:
         reset_results()
         st.session_state.question = question
 
@@ -237,7 +237,7 @@ def main():
                 "🔍 &nbsp;&nbsp; Performing neural search on vector store... \n "
         )):
             try:
-                st.session_state.results, retriever_results = chatbot.query(index,
+                st.session_state.results, st.session_state.retriever_results = chatbot.query(index,
                                                                             question,
                                                                             pdf_content,
                                                                             top_k_retriever,
@@ -267,9 +267,31 @@ def main():
              """,
             unsafe_allow_html=True
         )
+        # Thumbs up and thumbs down buttons
+        col1, col2, col3 = st.columns([1, 1, 8])
+        with col1:
+            thumbs_up = st.button('👍', key='thumbs_up')
+        with col2:
+            thumbs_down = st.button('👎', key='thumbs_down')
+
+        if thumbs_up or thumbs_down:
+            with col3:
+                st.markdown(
+                    """
+                    <div style='color: green; font-size: 20px;'>
+                        Thank you for your feedback!
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            # Set run_query to True to ensure the results are shown
+            st.session_state.run_query = True
+
         st.markdown("<h2 style='color: #e36414;'>Top-k Retrieval Results:</h2>", unsafe_allow_html=True)
-        if run_query and question:
-            for count, result in enumerate(retriever_results):
+
+        if st.session_state.run_query and question:
+
+            for count, result in enumerate(st.session_state.retriever_results):
                 page_content, metadata = result.page_content, result.metadata
                 # Display each chunk
                 st.markdown(f"##### Chunk {count + 1}")
